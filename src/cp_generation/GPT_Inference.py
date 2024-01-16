@@ -1,5 +1,5 @@
 from openai import OpenAI
-from PetPlanetCP.src.cp_generation.promts.kuma import *
+from .promts.kuma import *
 import random
 import pandas as pd
 from openpyxl import load_workbook
@@ -9,8 +9,9 @@ import time
 import json
 import requests
 
+import os
 
-Client = OpenAI(api_key = "skxxxx4")
+Client = OpenAI(api_key = os.getenv('OPENAI_KEY'))
 N = 3
 Cost = 0
 
