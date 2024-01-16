@@ -10,7 +10,7 @@ import json
 import requests
 
 
-Client = OpenAI(api_key = "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")
+Client = OpenAI(api_key = "skxxxx4")
 N = 3
 Cost = 0
 
