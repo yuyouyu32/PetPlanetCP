@@ -7,6 +7,7 @@ import requests
 from tqdm import tqdm
 import math
 
+
 def get_summary(url: str):
     response = requests.get(url, headers=headers, cookies=cookies)
     if response.status_code != 200:
@@ -26,7 +27,7 @@ def get_summary(url: str):
 
 def get_describe(dataframe):
     for index, row in tqdm(dataframe.iterrows(), total=dataframe.shape[0]):
-        possible_name = [row['name_cn'], row['province_name']+row['name_cn'], str(row['city_name'])+row['name_cn'], row['province_name'] + str(row['city_name']) + row['name_cn']]
+        possible_name = [str(row['province_name'])+row['name_cn'], row['name_cn']]
         for name in possible_name:
             name = row['name_cn']
             if (isinstance(name, float) and math.isnan(name)) or  (isinstance(name, str) and name.strip()) == '' or name is None:
@@ -43,14 +44,13 @@ def get_describe(dataframe):
 
 
 if __name__ == "__main__":
-    file_path = './data/Scenery.xlsx'
-    save_path = './data/Scenery_des.xlsx'
+    file_path = 'D:\yuyouyu\Code\PetPlanetCP\src\data\Humanities.xlsx'
+    save_path = 'D:\yuyouyu\Code\PetPlanetCP\src\data\Humanities_d.xlsx'
     with pd.ExcelFile(file_path) as xls:
         sheet_names = xls.sheet_names
 
     with pd.ExcelWriter(save_path) as writer:
         for sheet_name in sheet_names:
-            if sheet_name not in {'RightScenery'}: continue
             print(sheet_name, '开始爬取')
             dataframe = pd.read_excel(file_path, sheet_name=sheet_name)
             dataframe = get_describe(dataframe)

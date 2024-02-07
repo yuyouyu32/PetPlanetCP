@@ -1,13 +1,13 @@
 from openai import OpenAI
-from .promts.kuma import *
+# from prompts.A_food import *
+# from prompts.A_humanities import *
+from prompts.BandC import *
+from prompts.shu import *
+
 import random
 import pandas as pd
-from openpyxl import load_workbook
 from tqdm import tqdm
-import math
 import time
-import json
-import requests
 
 import os
 
@@ -15,25 +15,6 @@ Client = OpenAI(api_key = os.getenv('OPENAI_KEY'))
 N = 3
 Cost = 0
 
-def read_excel(filename: str):
-    workbook = load_workbook(filename=filename, read_only=False, data_only=True)
-    data = {}
-
-    for sheet_name in workbook.sheetnames:
-        sheet = workbook[sheet_name]
-
-        merged_data = {}
-        for merged_cell in sheet.merged_cells:
-            min_row, min_col, max_row, max_col = merged_cell.min_row, merged_cell.min_col, merged_cell.max_row, merged_cell.max_col
-            top_left_cell_value = sheet.cell(row=min_row, column=min_col).value
-            for row in range(min_row, max_row + 1):
-                for col in range(min_col, max_col + 1):
-                    merged_data[(row, col)] = top_left_cell_value
-
-        data[sheet_name] = [[merged_data.get((row_idx+1, col_idx+1), cell.value)
-                             for col_idx, cell in enumerate(row)] for row_idx, row in enumerate(sheet.iter_rows())]
-
-    return data
 
 
 # GPT-4
@@ -53,104 +34,200 @@ def get_copywriter_from_GPT(sys_prompt: str, user_prompt: str, n: int = 1):
         cost (float): Cost price(￥) of generating copywriters
     """
     response = Client.chat.completions.create(
-    model="gpt-4-1106-preview",
+    model="gpt-4-0125-preview",
     messages=[
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_prompt},
     ],
     n = n
-    ).dict()
+    ).model_dump()
     cost = calculate_token_price(response['usage']['prompt_tokens'], response['usage']['completion_tokens'])
     copywriters = []
     for choice in range(n):
         copywriters.append(response['choices'][choice]['message']['content'])
     return copywriters, cost
-# Baidu
-def get_access_token():
-    """
-    使用 API Key，Secret Key 获取access_token，替换下列示例中的应用API Key、应用Secret Key
-    """
-        
-    url = "https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=uEFcOQL51OpXMejaB5NLl2B5&client_secret=itckeuCsN5Ffq0Yy13EjhtImjvg1GVjt"
-    
-    payload = json.dumps("")
-    headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-    
-    response = requests.request("POST", url, headers=headers, data=payload)
-    return response.json().get("access_token")
-    
-def get_copywriter_from_Baidu(sys_prompt: str, user_prompt: str):
-    url = "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro?access_token=" + get_access_token()
-    
-    payload = json.dumps({
-        "messages": [
-            {
-                "role": "user",
-                "content": user_prompt
-            }
-        ]
-        ,
-        "system": sys_prompt
-    })
-    headers = {
-        'Content-Type': 'application/json'
-    }
-    
-    response = requests.request("POST", url, headers=headers, data=payload)
-    copyright = response.json().get("result")
-    total_tokens = response.json().get("usage").get("total_tokens")
-    cost = 0.12 * total_tokens / 1000
-    return copyright, cost
 
-if __name__ == '__main__':
-    file_path = './各省特色整理_文案.xlsx'
-    save_path = './各省特色整理_文案.xlsx'
-    data = read_excel(file_path)
-    dfs = {sheet_name: pd.DataFrame(sheet_data[1:], columns=sheet_data[0]) for sheet_name, sheet_data in data.items()}
-    with pd.ExcelFile(file_path) as xls:
-        sheet_names = xls.sheet_names
 
+def A_Generation():
+    # file_path = '/home/jeriffli/PetPlanetCP/data/Food.xlsx'
+    # save_path = '/home/jeriffli/PetPlanetCP/data/Food_A_{sheet_name}.xlsx'
+    file_path = '/home/jeriffli/PetPlanetCP/data/Humanities.xlsx'
+    save_path = '/home/jeriffli/PetPlanetCP/data/Humanities_A_{sheet_name}.xlsx'
+    xlsx = pd.read_excel(file_path, sheet_name=None)
+    sheet_names = xlsx.keys()
 
     for sheet_name in sheet_names:
-        if sheet_name != '东线-风景篇': continue
-        print(sheet_name, '开始获取文案...')
+        if sheet_name != 'RightHumanities': continue
+        print(sheet_name, 'Start...')
         sys_prompt = SystemPromptTemplate.format()
-        content_prompt = ContentPromptTemplate.format(content_req=content_req)
-        dataframe = dfs[sheet_name]
+        dataframe = xlsx[sheet_name]
+        save_path_sheet = save_path.format(sheet_name=sheet_name)
+
         for index, row in tqdm(dataframe.iterrows(), total=dataframe.shape[0]):
-            province = row['省份']
-            local = row['地点']
-            name = row['名称']
-            description = row['描述']
-            if (isinstance(name, float) and math.isnan(name)) or (isinstance(name, str) and name.strip()) == '' or name is None:
-                dataframe.loc[index, '诗句查询-百度'] = None
-                continue
-            if (isinstance(local, float) and math.isnan(local)) or (isinstance(local, str) and local.strip()) == '' or local is None:
-                local = ''
-            if (isinstance(province, float) and math.isnan(province)) or (isinstance(province, str) and province.strip()) == '' or province is None:
-                province = ''
-            title = province + local + name
-            if (isinstance(description, float) and math.isnan(description)) or (isinstance(description, str) and description.strip()) == '' or description is None:
-                description = ''
-            copywriters = ""
-            for i in range(2):
-                random_examples = random.sample(examples, 5)
-                examples_prompt = ExamplesPromptTemplate.format(examples="\n".join(random_examples))
-                task_prompt = TaskPromptTemplate.format(title=title, description=description, content_prompt=content_prompt)
-                results, cost = get_copywriter_from_Baidu(sys_prompt=sys_prompt, user_prompt=task_prompt)
-                Cost += cost
-                # copywriters += '\n\n'.join(results)
-                copywriters += results
-                if i == 0:
-                    copywriters += '\n\n'
-                time.sleep(random.randint(1, 3))
-            dataframe.loc[index, '诗句查询-百度'] = copywriters
-            # Save the dataframe to excel
-            with pd.ExcelWriter(save_path) as writer:
-                dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+            local = row['province_name']
+            name = row['name_cn']
+            description = row['des_s']
+            content_req_result = content_req.format(local=local, name=name)
+            content_prompt = ContentPromptTemplate.format(content_req=content_req_result)
+            # random_examples = random.sample(examples, 3)
+            # examples_prompt = ExamplesPromptTemplate.format(examples="\n".join(random_examples))
+            task_prompt = TaskPromptTemplate.format(name=name, description=description, content_prompt=content_prompt, local=local)
+            copywriters, cost = get_copywriter_from_GPT(sys_prompt=sys_prompt, user_prompt=task_prompt, n=3)
+            copywriters = '\n'.join(copywriters)
+            Cost += cost
+            time.sleep(random.randint(1, 2))
+            dataframe.loc[index, 'A_humanities'] = copywriters
+            # Write your DataFrame to an Excel file and save
+            dataframe.to_excel(save_path_sheet, sheet_name=sheet_name, index=False)
         print(sheet_name, 'Done!')
     print('Cost: ', Cost)
-        
+
+def BandC_Generation():
+    key_point = "Left"
+    scenery_path = f'/home/jeriffli/PetPlanetCP/data/{key_point}Scenery_A_kuma.xlsx'
+    save_path = f'/home/jeriffli/PetPlanetCP/data/{key_point}Scenery_kuma_BandC.xlsx'
+    data = pd.read_excel(scenery_path)
+    data.fillna({'A': ""}, inplace=True)
+    sys_prompt = SystemPromptTemplate.format()
+
+    save_df = pd.DataFrame()
+    all_cost = 0
+    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
+        local = f"{row['province_name']} {row['name_cn']}"
+        A = row['A']
+        if A == '': continue
+        content_req_prompt = content_req.format()
+        content_prompt = ContentPromptTemplate.format(content_req=content_req_prompt)
+        random_examples = random.sample(examples, 3)
+        examples_prompt = ExamplesPromptTemplate.format(examples="\n".join(random_examples))
+        task_prompt = TaskPromptTemplate.format(content_prompt=content_prompt, local=local, examples_prompt=examples_prompt, content=A)
+
+        BandCs, cost = get_copywriter_from_GPT(sys_prompt=sys_prompt, user_prompt=task_prompt,  n=15)
+        for BandC in BandCs:
+            save_df = save_df._append({'local': local, 'A': A, 'QA': BandC}, ignore_index=True)
+            save_df.to_excel(save_path, index=False)
+        all_cost += cost
+        time.sleep(random.randint(1, 2))
+    print('Cost: ', all_cost)
+
+def BandC_Generation_vision():
+    key_point = "Right"
+    scenery_path = f'/home/jeriffli/PetPlanetCP/data/{key_point}Scenery_A_kuma.xlsx'
+    save_path = f'/home/jeriffli/PetPlanetCP/data/{key_point}Scenery_V_kuma_BandC.xlsx'
+    ###
+    from GPT_Vision import get_vision_cp
+    import re
+    import glob
+    img_root_path = '/home/jeriffli/PetPlanetCP/postcard'
+    all_files = glob.glob(os.path.join(img_root_path, '*'))
+    ###
+    data = pd.read_excel(scenery_path)
+    data.fillna({'A': ""}, inplace=True)
+    sys_prompt = SystemPromptTemplate.format()
+
+    save_df = pd.DataFrame()
+    all_cost = 0
+    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
+        local = f"{row['province_name']} {row['name_cn']}"
+        A = row['A']
+        if A == '': continue
+        content_req_prompt = content_req.format()
+        content_prompt = ContentPromptTemplate.format(content_req=content_req_prompt)
+        random_examples = random.sample(examples, 3)
+        examples_prompt = ExamplesPromptTemplate.format(examples="\n".join(random_examples))
+        ###
+        task_prompt = TaskPromptTemplate.format(content_prompt=content_prompt, local=local, examples_prompt=examples_prompt)
+
+        image_pattern = fr"r_{row['pid']}_{row['sid']}_[0-9]+\.(png|jpg|jpeg|bmp)"
+        match_files = []
+        for file_path in all_files:
+            file_name = os.path.basename(file_path)
+            if re.match(image_pattern, file_name):
+                match_files.append(file_path)
+        for file_path in match_files:
+            BandCs, cost = get_vision_cp(sys_prompt=sys_prompt, task_prompt=task_prompt, image_path=file_path, n=5)
+            for BandC in BandCs:
+                save_df = save_df._append({'local': local, 'A': A, 'QA': BandC}, ignore_index=True)
+                save_df.to_excel(save_path, index=False)
+            all_cost += cost
+            time.sleep(random.randint(1, 2))
+    print('Cost: ', all_cost)
+
+def BandC_Generation_food():
+    food_path = '/home/jeriffli/PetPlanetCP/data/Humanities.xlsx'
+    for key in ['Left', 'Mid', 'Right']:
+        province_food_descriptions = {}
+        food_des = pd.read_excel(food_path, sheet_name=f'{key}Humanities')
+        for index, row in food_des.iterrows():
+            province = row['province_name']
+            description = row['des_s']
+            
+            if province not in province_food_descriptions:
+                province_food_descriptions[province] = []
+            
+            province_food_descriptions[province].append(description)
+        scenery_path = f'/home/jeriffli/PetPlanetCP/data/{key}Scenery_A_kuma.xlsx'
+        save_path = f'/home/jeriffli/PetPlanetCP/data/{key}Scenery_Humanities_BandC.xlsx'
+        data = pd.read_excel(scenery_path)
+        data.fillna({'A': ""}, inplace=True)
+        sys_prompt = SystemPromptTemplate.format()
+
+        save_df = pd.DataFrame()
+        all_cost = 0
+        for index, row in tqdm(data.iterrows(), total=data.shape[0]):
+            local = f"{row['province_name']} {row['name_cn']}"
+            A = row['A']
+            if A == '': continue
+            content_req_prompt = content_req.format()
+            content_prompt = ContentPromptTemplate.format(content_req=content_req_prompt)
+            for des_s in province_food_descriptions.get(row['province_name'], []):
+                random_examples = random.sample(examples, 3)
+                examples_prompt = ExamplesPromptTemplate.format(examples="\n".join(random_examples))
+                task_prompt = TaskPromptTemplate.format(content_prompt=content_prompt, local=local, examples_prompt=examples_prompt, des_s=des_s)
+                BandCs, cost = get_copywriter_from_GPT(sys_prompt=sys_prompt, user_prompt=task_prompt, n=3)
+                for BandC in BandCs:
+                    save_df = save_df._append({'local': local, 'A': A, 'QA': BandC}, ignore_index=True)
+                    save_df.to_excel(save_path, index=False)
+                all_cost += cost
+                time.sleep(random.randint(1, 2))
+        print('Cost: ', all_cost)
+
+
+
+def shu():
+    all_cost = 0
+    data = pd.read_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract.xlsx')
+    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
+        data_prompt = str(row.to_dict())
+        task_prompt = prompt.format(rule=rule, data=data_prompt)
+        # print(task_prompt)
+        # input('wait')
+        copywriters, cost = get_copywriter_from_GPT(sys_prompt='', user_prompt=task_prompt, n=1)
+        copywriters = '\n'.join(copywriters)
+        all_cost += cost
+        data.loc[index, 'Evalue'] = copywriters
+        data.to_excel('/home/jeriffli/PetPlanetCP/shu_data/Score_Design_v2_Evalue.xlsx', index=False)
+        time.sleep(random.randint(2, 3))
+    print('Cost: ', all_cost)
+
+def shu_ta():
+    all_cost = 0
+    data = pd.read_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract.xlsx')
+    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
+        title = row['Title']
+        abstract = row['Abstract']
+        task_prompt = prompt.format(title=title, abstract=abstract)
+        copywriters, cost = get_copywriter_from_GPT(sys_prompt='', user_prompt=task_prompt, n=1)
+        copywriters = '\n'.join(copywriters)
+        all_cost += cost
+        data.loc[index, 'Relevance'] = copywriters
+        data.to_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract_R.xlsx', index=False)
+        time.sleep(random.randint(2, 3))
+    print('Cost: ', all_cost)
+
+if __name__ == '__main__':
+    # A_Generation()
+    # BandC_Generation()
+    BandC_Generation_food()
+    # shu_ta()
+    
