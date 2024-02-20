@@ -2,7 +2,6 @@ from openai import OpenAI
 # from prompts.A_food import *
 # from prompts.A_humanities import *
 from prompts.BandC import *
-from prompts.shu import *
 
 import random
 import pandas as pd
@@ -194,40 +193,10 @@ def BandC_Generation_food():
 
 
 
-def shu():
-    all_cost = 0
-    data = pd.read_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract.xlsx')
-    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
-        data_prompt = str(row.to_dict())
-        task_prompt = prompt.format(rule=rule, data=data_prompt)
-        # print(task_prompt)
-        # input('wait')
-        copywriters, cost = get_copywriter_from_GPT(sys_prompt='', user_prompt=task_prompt, n=1)
-        copywriters = '\n'.join(copywriters)
-        all_cost += cost
-        data.loc[index, 'Evalue'] = copywriters
-        data.to_excel('/home/jeriffli/PetPlanetCP/shu_data/Score_Design_v2_Evalue.xlsx', index=False)
-        time.sleep(random.randint(2, 3))
-    print('Cost: ', all_cost)
 
-def shu_ta():
-    all_cost = 0
-    data = pd.read_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract.xlsx')
-    for index, row in tqdm(data.iterrows(), total=data.shape[0]):
-        title = row['Title']
-        abstract = row['Abstract']
-        task_prompt = prompt.format(title=title, abstract=abstract)
-        copywriters, cost = get_copywriter_from_GPT(sys_prompt='', user_prompt=task_prompt, n=1)
-        copywriters = '\n'.join(copywriters)
-        all_cost += cost
-        data.loc[index, 'Relevance'] = copywriters
-        data.to_excel('/home/jeriffli/PetPlanetCP/shu_data/TitleAbstract_R.xlsx', index=False)
-        time.sleep(random.randint(2, 3))
-    print('Cost: ', all_cost)
 
 if __name__ == '__main__':
     # A_Generation()
     # BandC_Generation()
     BandC_Generation_food()
-    # shu_ta()
     
